@@ -1,0 +1,82 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=4
+
+_global_script_classes=[ {
+"base": "Element",
+"class": "BasicElement",
+"language": "GDScript",
+"path": "res://src/elements/BasicElement.gd"
+}, {
+"base": "Control",
+"class": "Element",
+"language": "GDScript",
+"path": "res://src/Element.gd"
+}, {
+"base": "Control",
+"class": "GDBar",
+"language": "GDScript",
+"path": "res://src/GDBar.gd"
+}, {
+"base": "Polygon2D",
+"class": "ShapePolygon2D",
+"language": "GDScript",
+"path": "res://src/ShapePolygon2D.gd"
+}, {
+"base": "BasicElement",
+"class": "SliderElement",
+"language": "GDScript",
+"path": "res://src/elements/SliderElement.gd"
+} ]
+_global_script_class_icons={
+"BasicElement": "",
+"Element": "",
+"GDBar": "",
+"ShapePolygon2D": "",
+"SliderElement": ""
+}
+
+[application]
+
+config/name="GDBar"
+run/main_scene="res://src/Main.tscn"
+boot_splash/use_filter=false
+boot_splash/bg_color=Color( 0.12549, 0.145098, 0.192157, 0 )
+
+[autoload]
+
+Colours="*res://src/Colours.gd"
+BasicModules="*res://src/modules/BasicModules.gd"
+Config="*res://src/Config.gd"
+
+[debug]
+
+gdscript/warnings/shadowed_variable=false
+gdscript/warnings/narrowing_conversion=false
+gdscript/warnings/return_value_discarded=false
+
+[display]
+
+window/size/width=1920
+window/size/height=30
+window/size/resizable=false
+window/size/borderless=true
+window/vsync/use_vsync=false
+window/energy_saving/keep_screen_on=false
+
+[physics]
+
+common/enable_pause_aware_picking=true
+
+[rendering]
+
+quality/driver/driver_name="GLES2"
+vram_compression/import_etc=true
+vram_compression/import_etc2=false
+batching/options/single_rect_fallback=true

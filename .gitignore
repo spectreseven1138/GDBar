@@ -1,0 +1,13 @@
+
+# Godot-specific ignores
+.import/
+export.cfg
+export_presets.cfg
+addons/*
+
+# Project ignores
+debug_user_dir/screenshots/
+build/
+
+# Addon exceptions
+!addons/Godot-Utilities

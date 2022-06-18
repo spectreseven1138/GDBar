@@ -1,0 +1,80 @@
+[gd_scene load_steps=5 format=2]
+
+[ext_resource path="res://src/elements/SliderElement.gd" type="Script" id=1]
+
+[sub_resource type="Shader" id=1]
+code = "shader_type canvas_item;
+
+uniform float progress: hint_range(0.0, 1.0) = 0.0;
+uniform vec4 replace_colour: hint_color = vec4(0.5, 0.5, 0.5, 1);
+uniform bool invert = true;
+
+void fragment() {
+	if (invert) {
+		if (UV.x > progress) {
+			COLOR.rgb = replace_colour.rgb;
+			COLOR.a *= replace_colour.a;
+		}
+	}
+	else if (UV.x < progress) {
+		COLOR.rgb = replace_colour.rgb;
+		COLOR.a *= replace_colour.a;
+	}
+}"
+
+[sub_resource type="ShaderMaterial" id=2]
+shader = SubResource( 1 )
+shader_param/progress = 0.633
+shader_param/replace_colour = Color( 0.223529, 0.168627, 0.286275, 1 )
+shader_param/invert = true
+
+[sub_resource type="StyleBoxFlat" id=3]
+resource_local_to_scene = true
+bg_color = Color( 0.796078, 0.65098, 0.968627, 1 )
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+
+[node name="SliderElement" type="MarginContainer"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_right = -1801.0
+margin_bottom = -6.0
+script = ExtResource( 1 )
+__meta__ = {
+"_edit_use_anchors_": false
+}
+value = 0.633
+bg_colour = Color( 0.223529, 0.168627, 0.286275, 1 )
+
+[node name="PanelContainer" type="PanelContainer" parent="."]
+material = SubResource( 2 )
+margin_right = 119.0
+margin_bottom = 24.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+custom_styles/panel = SubResource( 3 )
+
+[node name="MarginContainer" type="MarginContainer" parent="PanelContainer"]
+margin_right = 119.0
+margin_bottom = 24.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+custom_constants/margin_right = 15
+custom_constants/margin_top = 5
+custom_constants/margin_left = 15
+custom_constants/margin_bottom = 5
+
+[node name="LayoutContainer" type="HBoxContainer" parent="PanelContainer/MarginContainer"]
+margin_left = 15.0
+margin_top = 5.0
+margin_right = 104.0
+margin_bottom = 19.0
+
+[node name="ResizeTween" type="Tween" parent="."]
+
+[node name="ColourTween" type="Tween" parent="."]
+
+[connection signal="gui_input" from="PanelContainer/MarginContainer" to="." method="_on_MarginContainer_gui_input"]
+[connection signal="mouse_exited" from="PanelContainer/MarginContainer" to="." method="_on_MarginContainer_mouse_exited"]

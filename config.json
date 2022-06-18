@@ -1,0 +1,80 @@
+{
+	"pallette": {
+		"rosewater": "f5e0dc",
+		"flamingo": "f2cdcd",
+		"pink": "f5c2e7",
+		"mauve": "cba6f7",
+		"red": "f38ba8",
+		"maroon": "eba0ac",
+		"peach": "fab387",
+		"yellow": "f9e2af",
+		"green": "a6e3a1",
+		"teal": "94e2d5",
+		"sky": "89dceb",
+		"sapphire": "74c7ec",
+		"blue": "87b0f9",
+		"lavender": "b4befe",
+		"text": "c6d0f5",
+		"subtext1": "b3bcdf",
+		"subtext0": "a1a8c9",
+		"overlay2": "8e95b3",
+		"overlay1": "7b819d",
+		"overlay0": "696d86",
+		"surface2": "565970",
+		"surface1": "43465a",
+		"surface0": "313244",
+		"base": "1e1e2e",
+		"mantle": "181825",
+		"crust": "11111b"
+	},
+	"styles": {
+		"label": {
+			"font": "res://fonts/NotoSansCJKjp-Regular.ttf",
+			"font_colour": "base",
+			"font_size": 13
+		},
+		"playpause": {
+			"play_icon": "res://icons/play.png",
+			"pause_icon": "res://icons/pause.png"
+		}
+	},
+	"bg-colour": "base",
+	"layout-right": [
+		"media", "volume", "time"
+	],
+	"modules": {
+		"time": {
+			"type": "time",
+			"format": "",
+			"bg-colour": "yellow"
+		},
+		"volume": {
+			"type": "volume",
+			"slider": true
+		},
+		"media": {
+			"type": "media-api",
+			"poll-interval": 1,
+			"layout": {
+				"info": {
+					"style": "label"
+				},
+				"previous": {
+					"style": "text"
+				},
+				"playpause": {
+					"style": "playpause"
+				},
+				"next": {
+					"style": "text"
+				}
+			}
+		}
+	}
+}
+
+
+Hey, yeah long time no see
+I'm doing alright I guess. Pretty much just programming all day usually.
+They probably told you guys already but I'm going to be moving back to the UK in a few weeks.
+
