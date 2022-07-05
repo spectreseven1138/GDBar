@@ -1,9 +1,51 @@
 extends Node
 
+class CommandModule extends Element.Module:
+	var label: Label = null
+	var executable: String
+	var args: Array = []
+	
+	static func getType():
+		return "command"
+	
+	static func create(config: Dictionary):
+		var element: Element = preload("res://src/elements/BasicElement.tscn").instance()
+		var module: Element.Module = CommandModule.new()
+		module.init(element, config)
+		
+		module.label = GDBar.createStyledLabel(
+			config["style"] if "style" in config else null,
+			config["on-click"] if "on-click" in config else null
+		)
+		element.addSubElement(module.label)
+		
+		var command: Array = config["command"]
+		module.executable = command.pop_front()
+		module.args = command
+		
+		element.init(module)
+		return element
+	
+	func updateElement():
+		var result: Array = []
+		OS.execute(executable, args, true, result, true)
+		
+		element.prepareAnimation()
+		
+		if result.empty() or result[0].strip_edges().empty():
+			element.setElementVisibility(label, false)
+		else:
+			element.setElementVisibility(label, true)
+			element.setLabelText(label, result[0].strip_edges())
+		
+		element.executeAnimation()
+
 class TimeModule extends Element.Module:
 	const WEEKDAY_NAMES: Array = [
 		"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
 	]
+	
+	var label: Label = null
 	
 	static func getType():
 		return "time"
@@ -11,20 +53,16 @@ class TimeModule extends Element.Module:
 	static func create(config: Dictionary):
 		var element: Element = preload("res://src/elements/BasicElement.tscn").instance()
 		var module: Element.Module = TimeModule.new()
-		module.config = config
+		module.init(element, config)
+		
+		module.label = GDBar.createStyledLabel(config["style"] if "style" in config else null)
+		element.addSubElement(module.label)
+		
 		element.init(module)
+		
 		return element
 	
-	func registerElement(element: Element):
-		element.connectGuiInput(self, "onGuiEvent", [element])
-	
-	func onGuiEvent(event: InputEvent, element: Element):
-		if event is InputEventMouseButton and event.button_index == BUTTON_LEFT and event.pressed:
-			element.setData("")
-			yield(element.get_tree().create_timer(2), "timeout")
-			element.setData("Hello World")
-	
-	func updateElement(element: Element):
+	func updateElement():
 		var time: Dictionary = OS.get_datetime()
 		for key in time:
 			if key == "dst":
@@ -41,15 +79,16 @@ class TimeModule extends Element.Module:
 		
 		# TODO | Config
 		# year, month, day, weekday, hour, minute, second
-		element.setData(time["weekday"] + " " + time["month"] + "/" + time["day"] + " " + time["hour"] + ":" + time["minute"])
+		label.text = time["weekday"] + " " + time["month"] + "/" + time["day"] + " " + time["hour"] + ":" + time["minute"]
 
 class VolumeModule extends Element.Module:
+	
+	var label: Label = null
 	
 	static func getType():
 		return "volume"
 	
 	static func create(config: Dictionary):
-		
 		var scene: PackedScene
 		if "slider" in config and config["slider"]:
 			scene = preload("res://src/elements/SliderElement.tscn")
@@ -58,8 +97,21 @@ class VolumeModule extends Element.Module:
 		
 		var element: Element = scene.instance()
 		var module: Element.Module = VolumeModule.new()
-		module.config = config
+		module.init(element, config)
+		
+		module.label = GDBar.createStyledLabel(config["style"] if "style" in config else null)
+		element.addSubElement(module.label)
+		
 		element.init(module)
+		
+		element.resize_mode = BasicElement.RESIZE_MODE.FIXED
+		element.rect_min_size.x = 75
+		if element is SliderElement:
+			element.connect("VALUE_CHANGED", module, "onSliderValueChanged")
+			element.setBgColour(element.colour * 0.75)
+		else:
+			element.connectGuiInput(module, "onElementGuiInput")
+		
 		return element
 	
 	static func getVolume() -> float:
@@ -92,15 +144,7 @@ class VolumeModule extends Element.Module:
 	static func setVolume(value: float):
 		OS.execute("amixer", ["-q", "sset", "Master", str(int(value * 100.0)) + "%"])
 	
-	func registerElement(element: Element):
-		element.resize_mode = BasicElement.RESIZE_MODE.FIXED
-		element.rect_min_size.x = 100
-		if element is SliderElement:
-			element.connect("VALUE_CHANGED", self, "onSliderValueChanged", [element])
-		else:
-			element.connectGuiInput(self, "onElementGuiInput", [element])
-	
-	func onElementGuiInput(event: InputEvent, element: Element):
+	func onElementGuiInput(event: InputEvent):
 		if event is InputEventMouseButton:
 			var polarity: int = 0
 			if event.button_index == BUTTON_WHEEL_UP:
@@ -118,15 +162,16 @@ class VolumeModule extends Element.Module:
 				volume += polarity * SliderElement.SCROLL_STEP
 				setVolume(volume)
 				
-				updateElement(element, volume)
+				updateElement(volume)
 	
-	func onSliderValueChanged(slider: SliderElement):
-		var percentage: String = str(int(slider.value * 100))
+	func onSliderValueChanged():
+		assert(element is SliderElement)
+		var percentage: String = str(int(element.value * 100))
 		OS.execute("amixer", ["-q", "sset", "Master", percentage + "%"])
-		updateElement(slider, slider.value)
+		updateElement(element.value)
 	
-	func updateElement(element: Element, volume: float = getVolume()):
-		element.setData(str(int(volume * 100.0)) + "%")
+	func updateElement(volume: float = getVolume()):
+		label.text = str(int(volume * 100.0)) + "%"
 		if element is SliderElement:
 			element.value = volume
 		else:
@@ -136,15 +181,9 @@ class MediaAPIModule extends Element.Module:
 	
 	const DEFAULT_LAYOUT: Array = ["info", "previous", "playpause", "next"]
 	
-	const DEFAULT_LABEL_STYLE: Dictionary = {
-		"font": "res://fonts/NotoSansCJKjp-Regular.ttf",
-		"font_colour": "000000",
-		"font_size": 13
-	}
-	
 	const DEFAULT_PLAYPAUSE_STYLE: Dictionary = {
-		"play_icon": "res://icons/play.png",
-		"pause_icon": "res://icons/pause.png"
+		"play-icon": "res://icons/play.png",
+		"pause-icon": "res://icons/pause.png"
 	}
 	
 	const DEFAULT_NEXT_STYLE: Dictionary = {
@@ -155,93 +194,93 @@ class MediaAPIModule extends Element.Module:
 		"icon": "res://icons/previous.png"
 	}
 	
-#		"stop": "res://icons/stop.png",
-
+	var info: Label = null
+	var info_on_click: Array = null
+	var playpause: TextureButton = null
+	var next: TextureButton = null
+	var previous: TextureButton = null
+	
 	static func getType():
 		return "media-api"
 	
 	static func create(config: Dictionary):
 		var element: BasicElement = preload("res://src/elements/BasicElement.tscn").instance()
 		var module: Element.Module = MediaAPIModule.new();
-		module.config = config
+		module.init(element, config)
 		
 		if "layout" in config:
 			var layout: Dictionary = config["layout"]
-			var layout_indices: Dictionary = {}
 			
-			var i: int = 0
 			for sub_element in layout:
 				
-				layout_indices[sub_element] = i
-				i += 1
-				
-				var node: Node
 				match sub_element:
 					"info":
-						node = Label.new()
-						node.visible = false
+						module.info = GDBar.createStyledLabel(layout[sub_element]["style"] if "style" in layout[sub_element] else null)
+						module.info.visible = true
 						
-						var style: Dictionary = DEFAULT_LABEL_STYLE
-						if "style" in layout[sub_element]:
-							style = GDBar.getStyle(layout[sub_element]["style"], DEFAULT_LABEL_STYLE)
+						if "on-click" in layout[sub_element]:
+							module.info.mouse_filter = Control.MOUSE_FILTER_PASS
+							module.info.connect("gui_input", module, "onInfoGuiInput")
+							module.info_on_click = layout[sub_element]["on-click"]
+							GDBar.formatCommand(module.info_on_click)
 						
-						var font: DynamicFont = DynamicFont.new()
-						font.font_data = load(style["font"])
-						font.size = style["font_size"]
-						
-						node.set("custom_fonts/font", font)
-						node.set("custom_colors/font_color", GDBar.getColour(style["font_colour"]))
+						element.addSubElement(module.info)
 						
 					"playpause":
-						node = TextureButton.new()
-						node.visible = true
-						node.expand = true
-						node.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-						node.rect_min_size = Vector2(12, 12)
-						node.modulate.a = 0.7
+						module.playpause = TextureButton.new()
+						module.playpause.visible = true
+						module.playpause.expand = true
+						module.playpause.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+						module.playpause.rect_min_size = Vector2(12, 12)
+						module.playpause.modulate.a = 0.7
+						module.playpause.toggle_mode = true
 						
 						var style: Dictionary = DEFAULT_PLAYPAUSE_STYLE
 						if "style" in layout[sub_element]:
 							style = GDBar.getStyle(layout[sub_element]["style"], DEFAULT_PLAYPAUSE_STYLE)
 						
-						node.texture_normal = load(style["play_icon"])
-						node.texture_pressed = load(style["pause_icon"])
+						module.playpause.texture_normal = load(style["play-icon"])
+						module.playpause.texture_pressed = load(style["pause-icon"])
+						module.playpause.connect("pressed", module, "onPlayPausePressed")
+						
+						element.addSubElement(module.playpause)
 						
 					"next":
-						node = TextureButton.new()
-						node.visible = true
-						node.expand = true
-						node.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-						node.rect_min_size = Vector2(12, 12)
+						module.next = TextureButton.new()
+						module.next.visible = true
+						module.next.expand = true
+						module.next.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+						module.next.rect_min_size = Vector2(12, 12)
 						
 						var style: Dictionary = DEFAULT_NEXT_STYLE
 						if "style" in layout[sub_element]:
 							style = GDBar.getStyle(layout[sub_element]["style"], DEFAULT_NEXT_STYLE)
 						
-						node.texture_normal = load(style["icon"])
-						node.texture_pressed = node.texture_normal
+						module.next.texture_normal = load(style["icon"])
+						module.next.texture_pressed = module.next.texture_normal
+						module.next.connect("pressed", module, "onNextPressed")
+						
+						element.addSubElement(module.next)
 						
 					"previous":
-						node = TextureButton.new()
-						node.visible = true
-						node.expand = true
-						node.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-						node.rect_min_size = Vector2(12, 12)
+						module.previous = TextureButton.new()
+						module.previous.visible = true
+						module.previous.expand = true
+						module.previous.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+						module.previous.rect_min_size = Vector2(12, 12)
 						
 						var style: Dictionary = DEFAULT_PREVIOUS_STYLE
 						if "style" in layout[sub_element]:
 							style = GDBar.getStyle(layout[sub_element]["style"], DEFAULT_PREVIOUS_STYLE)
 						
-						node.texture_normal = load(style["icon"])
-						node.texture_pressed = node.texture_normal
+						module.previous.texture_normal = load(style["icon"])
+						module.previous.texture_pressed = module.previous.texture_normal
+						module.previous.connect("pressed", module, "onPreviousPressed")
+						
+						element.addSubElement(module.previous)
 					_:
 						assert(false, "Unknown subelement '" + sub_element + "'")
 						continue
-				
-				element.addSubElement(node)
-			element.set_meta("layout", layout_indices)
-		else:
-			element.set_meta("layout", {})
 		
 		element.init(module)
 		return element
@@ -249,16 +288,72 @@ class MediaAPIModule extends Element.Module:
 	static func getMediaInfo() -> Dictionary:
 		var result: Array = []
 		OS.execute("mediaAPI", ["client", "getinfo"], true, result, true)
-		return parse_json(result[0])
+		
+#		if result[0].strip_edges() == "[31mResource temporarily unavailable (timed out after 1000ms)[0m":
+#			return null
+#
+#		print(result[0])
+		
+		var parsed: JSONParseResult = JSON.parse(result[0])
+		if parsed.error != OK:
+			return null
+		
+		return parsed.result
 	
-	func updateElement(element: Element):
+	func onInfoGuiInput(event: InputEvent):
+		if event is InputEventMouseButton and event.pressed and event.button_index == BUTTON_LEFT:
+			GDBar.runCommand(info_on_click)
+#			element.prepareAnimation()
+##			element.setElementVisibility(info, false)
+#			element.setLabelText(info, "Hello world Hello world Hello world Hello world Hello world Hello world Hello world")
+#			element.executeAnimation()
+	
+	func onPlayPausePressed():
+		OS.execute("mediaAPI", ["client", "playpause"])
+		updateElement()
+	
+	func onNextPressed():
+		OS.execute("mediaAPI", ["client", "next"])
+	
+	func onPreviousPressed():
+		OS.execute("mediaAPI", ["client", "previous"])
+	
+	func updateElement():
 		
-		var info: Dictionary = getMediaInfo()
+		element.prepareAnimation()
 		
-		var layout: Dictionary = element.get_meta("layout")
-		if "info" in layout:
-			if not info["visible"]:
-				element.setData("", layout["info"])
-			else:
-				element.setData(info["title"], layout["info"])
+		var data: Dictionary = getMediaInfo()
 		
+		if data == null:
+			for node in [playpause, next, previous]:
+				if node != null:
+					element.setElementVisibility(node, false)
+			
+			if info != null:
+				element.setElementVisibility(info, true)
+				element.setLabelText(info, "Failed to get media info")
+			
+			element.executeAnimation()
+			
+			return
+		
+		element.setVisibility(data["visible"])
+		
+		if data["visible"]:
+		
+			element.setElementVisibility(info, true)
+			element.setElementVisibility(playpause, true)
+			
+			if info != null:
+				element.setLabelText(info, data["title"])
+			
+			if playpause != null:
+				playpause.pressed = data["playing"]
+			
+			if next != null:
+				element.setElementVisibility(next, data["can_go_next"])
+			
+			if previous != null:
+				element.setElementVisibility(previous, data["can_go_previous"])
+		
+		element.executeAnimation()

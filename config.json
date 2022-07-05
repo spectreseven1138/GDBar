@@ -34,13 +34,13 @@
 			"font_size": 13
 		},
 		"playpause": {
-			"play_icon": "res://icons/play.png",
-			"pause_icon": "res://icons/pause.png"
+			"play-icon": "res://icons/play.png",
+			"pause-icon": "res://icons/pause.png"
 		}
 	},
 	"bg-colour": "base",
 	"layout-right": [
-		"media", "volume", "time"
+		"media", "volume", "countdown", "time"
 	],
 	"modules": {
 		"time": {
@@ -50,14 +50,26 @@
 		},
 		"volume": {
 			"type": "volume",
-			"slider": true
+			"slider": true,
+			"bg-colour": "sky"
+		},
+		"countdown": {
+			"type": "command",
+			"bg-colour": "yellow",
+			"command": ["echo", "$(expr '(' $(date -d 2022/07/05 +%s) - $(date +%s) + 86399 ')' / 86400)", " days"],
+			"poll-interval": 60,
+			"on-click": ["gnome-calendar"],
+			"style": {
+				"disable-fade": true
+			}
 		},
 		"media": {
 			"type": "media-api",
 			"poll-interval": 1,
 			"layout": {
 				"info": {
-					"style": "label"
+					"style": "label",
+					"on-click": ["code", "~/.config/mediapanel-config.json"]
 				},
 				"previous": {
 					"style": "text"
@@ -72,9 +84,3 @@
 		}
 	}
 }
-
-
-Hey, yeah long time no see
-I'm doing alright I guess. Pretty much just programming all day usually.
-They probably told you guys already but I'm going to be moving back to the UK in a few weeks.
-

@@ -7,7 +7,6 @@ var timer: Timer = null
 func init(module: Module = null):
 	assert(module.config != null)
 	self.module = module
-	module.registerElement(self)
 	updateInfo()
 	
 	if "poll-interval" in module.config:
@@ -25,7 +24,7 @@ func setPollInterval(value: float):
 	if not timer:
 		timer = Timer.new()
 		add_child(timer)
-		timer.connect("timeout", module, "updateElement", [self])
+		timer.connect("timeout", self, "updateInfo")
 	
 	timer.wait_time = value
 	
@@ -35,23 +34,25 @@ func setPollInterval(value: float):
 		timer.autostart = true
 
 func updateInfo():
-	assert(module)
-	module.updateElement(self)
+	print("update ", module.getType())
+	module.updateElement()
 
 func connectGuiInput(object: Object, method: String, binds: Array = []):
 	connect("gui_input", object, method, binds)
 
 class Module:
-	var config: Dictionary = null
+	var config: Dictionary
+	var element: Element
 	static func getType() -> String:
 		assert(false)
 		return ""
 	static func create(_config: Dictionary) -> Element:
 		assert(false)
 		return null
-	func registerElement(_element: Element) -> void:
-		pass
-	func updateElement(_element: Element) -> void:
+	func init(_element: Element, _config: Dictionary):
+		element = _element
+		config = _config
+	func updateElement() -> void:
 		pass
 
 #class GDScriptModule extends Module:

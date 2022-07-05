@@ -52,7 +52,6 @@ bg_colour = Color( 0.223529, 0.168627, 0.286275, 1 )
 material = SubResource( 2 )
 margin_right = 119.0
 margin_bottom = 24.0
-size_flags_horizontal = 3
 size_flags_vertical = 3
 custom_styles/panel = SubResource( 3 )
 
@@ -71,6 +70,7 @@ margin_left = 15.0
 margin_top = 5.0
 margin_right = 104.0
 margin_bottom = 19.0
+alignment = 1
 
 [node name="ResizeTween" type="Tween" parent="."]
 

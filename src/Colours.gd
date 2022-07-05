@@ -26,3 +26,16 @@ const surface0 = Color("313244")
 const base = Color("1e1e2e")
 const mantle = Color("181825")
 const crust = Color("11111b")
+
+const pallette: Array = [mauve, sky, teal]
+var pallette_head: int = 0
+
+func palletteAvailable() -> bool:
+	return not pallette.empty()
+
+func getNextPalletteColour() -> Color:
+	assert(palletteAvailable())
+	
+	var ret: Color = pallette[pallette_head]
+	pallette_head = wrapi(pallette_head + 1, 0, len(pallette))
+	return ret

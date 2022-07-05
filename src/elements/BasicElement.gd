@@ -9,15 +9,16 @@ onready var layout_container: HBoxContainer = $PanelContainer/MarginContainer/La
 onready var panel_container: PanelContainer = $PanelContainer
 onready var panel_style: StyleBoxFlat = $PanelContainer.get("custom_styles/panel")
 onready var margin_container: MarginContainer = $PanelContainer/MarginContainer
-onready var resize_tween: Tween = $ResizeTween
+onready var animation_tween: Tween = $ResizeTween
 onready var colour_tween: Tween = $ColourTween
 
 enum RESIZE_MODE { FIXED, DYNAMIC_FULL, DYNAMIC_OFFSET }
 var resize_mode: int = RESIZE_MODE.DYNAMIC_FULL
 
-const DYNAMIC_RESIZE_DURATION: float = 0.5
-const DYNAMIC_RESIZE_TRANS_TYPE: int = Tween.TRANS_SINE
-const DYNAMIC_RESIZE_EASE_TYPE: int = Tween.EASE_IN_OUT
+const ANIMATION_DURATION: float = 0.5
+#const ANIMATION_DURATION: float = 5.0
+const ANIMATION_TRANS_TYPE: int = Tween.TRANS_SINE
+const ANIMATION_EASE_TYPE: int = Tween.EASE_IN_OUT
 
 var prev_min_size: Vector2
 
@@ -25,22 +26,12 @@ func _ready():
 	panel_style.bg_color = colour
 
 func init(module: Module = null):
-	visible = false
-	
-#	var label: Label = Label.new()
-#	label.visible = false
-#
-#	var font: DynamicFont = DynamicFont.new()
-#	font.font_data = preload("res://fonts/NotoSansCJKjp-Regular.ttf")
-#	font.size = 13
-#	label.set("custom_fonts/font", font)
-#
-#	addSubElement(label)
-	
 	.init(module)
 	
 	if "bg-colour" in module.config:
 		setColour(GDBar.getColour(module.config["bg-colour"]))
+	elif Colours.palletteAvailable():
+		setColour(Colours.getNextPalletteColour())
 
 func setCornerRadius(value: float):
 	if corner_radius == value:
@@ -50,88 +41,158 @@ func setCornerRadius(value: float):
 	for property in ["corner_radius_top_left", "corner_radius_top_right", "corner_radius_bottom_left", "corner_radius_bottom_right"]:
 		panel_style.set(property, corner_radius)
 
-func addSubElement(node: Node, index: int = -1):
+func addSubElement(node: Node):
 	if layout_container == null:
 		layout_container = $PanelContainer/MarginContainer/LayoutContainer
-	
 	layout_container.add_child(node)
-	if index != -1:
-		layout_container.move_child(node, index)
 
-func setData(value, index: int = 0):
+var animation_queue: Dictionary = {}
+var animation_targets: Dictionary = {}
+
+func prepareAnimation():
+	animation_queue.clear()
+	if not is_inside_tree():
+		return
+
+func setVisibility(visibility: bool):
 	
-	if layout_container == null:
-		layout_container = $PanelContainer/MarginContainer/LayoutContainer
+	if visible == visibility:
+		return
 	
-	var node: Node = layout_container.get_child(index)
+	if not self in animation_queue:
+		animation_queue[self] = {}
 	
-	if node is TextureRect:
-		assert(value is Texture)
+	animation_queue[self]["visibility"] = visibility
+
+func setElementVisibility(node: Node, visibility: bool):
+	assert(layout_container.is_a_parent_of(node))
 	
-	elif node is Label:
-		assert(value is String)
+	if node.visible == visibility:
+		return
+	
+	if not node in animation_queue:
+		animation_queue[node] = {}
+	
+	animation_queue[node]["visibility"] = visibility
+
+func setLabelText(label: Label, text: String):
+	assert(layout_container.is_a_parent_of(label))
+	
+	if label.text == text:
+		return
+	
+	if label in animation_targets and "label_text" in animation_targets[label] and text == animation_targets[label]["label_text"]:
+		return
+	
+	if not label in animation_queue:
+		animation_queue[label] = {}
+	
+	animation_queue[label]["label_text"] = text
+
+func _setLabelTextSmooth(label: Label, text: String):
+	rect_min_size = Vector2.ZERO
+	
+	var tween: Tween = Tween.new()
+	add_child(tween)
+	
+#	var container: Node = Node.new()
+#	var dupe: Control = self.duplicate(0)
+#	container.add_child(dupe)
+#	get_parent().add_child(container)
+#	dupe.rect_global_position = rect_global_position
+	
+	var original_size: Vector2 = rect_size
+	var original_text: String = label.text
+	label.text = text
+	yield(get_tree(), "idle_frame")
+	yield(get_tree(), "idle_frame")
+	
+	var size_flags: int = label.size_flags_horizontal
+	
+	var target_size: Vector2 = rect_size
+	label.text = original_text
+	yield(get_tree(), "idle_frame")
+	
+#	container.queue_free()
+	
+	tween.interpolate_property(label, "modulate:a", label.modulate.a, 0, ANIMATION_DURATION * 0.5, ANIMATION_TRANS_TYPE, ANIMATION_EASE_TYPE)
+	tween.start()
+	yield(tween, "tween_all_completed")
+	
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	
+	if target_size.x < original_size.x:
+		label.text = text
+		tween.interpolate_property(label, "modulate:a", label.modulate.a, 1, ANIMATION_DURATION * 0.5, ANIMATION_TRANS_TYPE, ANIMATION_EASE_TYPE)
+	
+	rect_size = Vector2.ZERO
+	tween.interpolate_property(self, "rect_min_size", original_size, target_size, ANIMATION_DURATION * 0.5, ANIMATION_TRANS_TYPE, ANIMATION_EASE_TYPE)
+	tween.start()
+	yield(tween, "tween_all_completed")
+	
+	if target_size.x >= original_size.x:
+		label.text = text
+		tween.interpolate_property(label, "modulate:a", label.modulate.a, 1, ANIMATION_DURATION * 0.5, ANIMATION_TRANS_TYPE, ANIMATION_EASE_TYPE)
+		tween.start()
+		yield(tween, "tween_all_completed")
+	
+	label.size_flags_horizontal = size_flags
+	tween.queue_free()
+
+func executeAnimation():
+	
+	if not is_inside_tree():
+		for node in animation_queue:
+			for key in animation_queue[node]:
+				var value = animation_queue[node][key]
+				
+				match key:
+					"visibility":
+						node.visible = value
+					"label_text":
+						node.text = value
+		return
+	
+	if self in animation_queue:
+		for key in animation_queue[self]:
+			var value = animation_queue[self][key]
+			if key == "visibility":
+				if value:
+					yield(expand(), "completed")
+				else:
+					shrink()
+		animation_queue.erase(self)
+	
+	for node in animation_queue:
 		
-		if Engine.editor_hint:
-			node.text = value
-			return
+		if not node in animation_targets:
+			animation_targets[node] = {}
 		
-		if not node.has_meta("text"):
-			node.set_meta("text", "")
-		
-		if value == node.get_meta("text"):
-			return
-		
-		var text: String = value.strip_edges()
-		node.set_meta("text", value.strip_edges())
-		
-		if resize_tween == null:
-			node.text = text
-			node.visible = !text.empty()
-			checkVisibility()
-			return
-		
-		resize_tween.stop_all()
-		
-		if text.empty():
+		for key in animation_queue[node]:
+			var value = animation_queue[node][key]
+			animation_targets[node][key] = value
 			
-			if not visible:
-				return
-			
-			match resize_mode:
-				RESIZE_MODE.FIXED:
-					resize_tween.interpolate_property(self, "modulate:a", modulate.a, 0, DYNAMIC_RESIZE_DURATION, DYNAMIC_RESIZE_TRANS_TYPE, DYNAMIC_RESIZE_EASE_TYPE)
-					resize_tween.interpolate_callback(self, DYNAMIC_RESIZE_DURATION, "set_visible", false)
-					resize_tween.start()
-				RESIZE_MODE.DYNAMIC_FULL, RESIZE_MODE.DYNAMIC_OFFSET:
-					node.set_meta("source_text", node.text)
-					resize_tween.interpolate_method(self, "interpolateToTargetText", index * 10 + 0.0, index * 10 + 0.5, DYNAMIC_RESIZE_DURATION * 0.5, DYNAMIC_RESIZE_TRANS_TYPE, DYNAMIC_RESIZE_EASE_TYPE)
-					resize_tween.interpolate_property(self, "modulate:a", modulate.a, 0, DYNAMIC_RESIZE_DURATION * 0.5, DYNAMIC_RESIZE_TRANS_TYPE, DYNAMIC_RESIZE_EASE_TYPE)
-					resize_tween.interpolate_callback(self, DYNAMIC_RESIZE_DURATION * 0.501, "shrink")
-					resize_tween.start()
-			
-			return
-		
-		if not visible:
-			node.text = ""
-			
-			resize_tween.interpolate_method(self, "interpolateToTargetText", index * 10 + 0.5, index * 10 + 1, DYNAMIC_RESIZE_DURATION * 0.75, DYNAMIC_RESIZE_TRANS_TYPE, DYNAMIC_RESIZE_EASE_TYPE, DYNAMIC_RESIZE_DURATION * 0.25)
-			resize_tween.interpolate_property(self, "modulate:a", 0, 1, DYNAMIC_RESIZE_DURATION * 0.75, 0, 2, DYNAMIC_RESIZE_DURATION * 0.25)
-			
-			expand()
-			return
-		
-		match resize_mode:
-			RESIZE_MODE.FIXED: node.text = value
-			RESIZE_MODE.DYNAMIC_FULL:
-				node.set_meta("source_text", node.text)
-				resize_tween.interpolate_method(self, "interpolateToTargetText", index * 10 + 0, index * 10 + 1, DYNAMIC_RESIZE_DURATION, DYNAMIC_RESIZE_TRANS_TYPE, DYNAMIC_RESIZE_EASE_TYPE)
-				resize_tween.start()
-			
-			RESIZE_MODE.DYNAMIC_OFFSET:
-				resize_tween.interpolate_property(node, "modulate:a", node.modulate.a, 0, DYNAMIC_RESIZE_DURATION * 0.5, DYNAMIC_RESIZE_TRANS_TYPE, DYNAMIC_RESIZE_EASE_TYPE)
-				resize_tween.interpolate_property(node, "modulate:a", 0, 1, DYNAMIC_RESIZE_DURATION * 0.5, DYNAMIC_RESIZE_TRANS_TYPE, DYNAMIC_RESIZE_EASE_TYPE, DYNAMIC_RESIZE_DURATION * 0.5)
-				resize_tween.interpolate_method(self, "interpolateToTargetText", index * 10 + 0.0, index * 10 + 1.0, DYNAMIC_RESIZE_DURATION * 0.5, DYNAMIC_RESIZE_TRANS_TYPE, DYNAMIC_RESIZE_EASE_TYPE, DYNAMIC_RESIZE_DURATION * 0.5)
-				resize_tween.start()
+			match key:
+				"visibility":
+					animation_tween.stop(node, "modulate:a")
+					animation_tween.stop(node, "set_visible")
+					animation_tween.interpolate_property(node, "modulate:a", node.modulate.a, 1 if value else 0, ANIMATION_DURATION)
+					animation_tween.interpolate_callback(node, ANIMATION_DURATION, "set_visible", value)
+				"label_text":
+					if node.get_meta("disable_fade"):
+						node.text = value
+					else:
+						_setLabelTextSmooth(node, value)
+					
+#					animation_tween.interpolate_property(node, "modulate:a", node.modulate.a, 0, ANIMATION_DURATION * 0.5)
+#					animation_tween.interpolate_property(node, "modulate:a", 0, 1, ANIMATION_DURATION * 0.5, ANIMATION_TRANS_TYPE, ANIMATION_EASE_TYPE, ANIMATION_DURATION * 0.5)
+#					animation_tween.interpolate_callback(self, ANIMATION_DURATION * 0.5, "_setLabelTextSmooth", node, value)
+					
+#					animation_tween.stop(node, "tweenStep")
+#					var animator: LabelAnimator = LabelAnimator.new(node.text, value, node)
+#					animation_tween.interpolate_method(animator, "tweenStep", 0, 1, ANIMATION_DURATION)
+	
+	animation_tween.start()
 
 func setColour(value: Color, animate: bool = false):
 	if colour == value:
@@ -179,33 +240,42 @@ func interpolateToTargetText(value: float):
 	
 	node.text = new_text
 
-func checkVisibility():
-	for child in layout_container.get_children():
-		if child.visible:
-			visible = true
-			return
-	visible = false
+#func checkVisibility():
+#	for child in layout_container.get_children():
+#		if child.visible:
+#			visible = true
+#			return
+#	visible = false
 
 func shrink():
 	prev_min_size = rect_size
 	rect_min_size = rect_size
 	
-	for child in get_children():
-		if "visible" in child:
-			child.visible = false
+	animation_tween.interpolate_property(layout_container, "modulate:a", layout_container.modulate.a, 0, ANIMATION_DURATION * 0.5, ANIMATION_TRANS_TYPE, ANIMATION_EASE_TYPE)
+	animation_tween.interpolate_callback(layout_container, ANIMATION_DURATION * 0.5, "set_visible", false)
 	
-	resize_tween.interpolate_property(self, "rect_min_size", rect_size, Vector2.ZERO, DYNAMIC_RESIZE_DURATION * 0.5, DYNAMIC_RESIZE_TRANS_TYPE, Tween.EASE_OUT)
-	resize_tween.interpolate_callback(self, DYNAMIC_RESIZE_DURATION * 0.5, "set_visible", false)
-	resize_tween.start()
+	animation_tween.interpolate_property(self, "rect_min_size", rect_size, Vector2.ZERO, ANIMATION_DURATION * 0.5, ANIMATION_TRANS_TYPE, Tween.EASE_OUT, ANIMATION_DURATION * 0.5)
+	animation_tween.interpolate_callback(self, ANIMATION_DURATION, "set_visible", false)
 
 func expand():
-	for child in get_children():
-		if "visible" in child:
-			resize_tween.interpolate_callback(child, DYNAMIC_RESIZE_DURATION * 0.5, "set_visible", true)
-	
 	visible = true
-	rect_min_size = Vector2.ZERO
-	rect_size = Vector2.ZERO
 	
-	resize_tween.interpolate_property(self, "rect_min_size", rect_min_size, prev_min_size, DYNAMIC_RESIZE_DURATION * 0.5, DYNAMIC_RESIZE_TRANS_TYPE, Tween.EASE_IN)
-	resize_tween.start()
+	layout_container.visible = true
+
+	yield(get_tree(), "idle_frame")
+	
+	var target: Vector2 = rect_size
+	
+	layout_container.visible = false
+	
+	yield(get_tree(), "idle_frame")
+	
+	rect_min_size.x = 0
+	rect_size.x = 0
+	
+	yield(get_tree(), "idle_frame")
+	
+	animation_tween.interpolate_property(self, "rect_min_size", rect_min_size, target, ANIMATION_DURATION * 0.5, ANIMATION_TRANS_TYPE, Tween.EASE_IN)
+	
+	animation_tween.interpolate_property(layout_container, "modulate:a", 0, 1, ANIMATION_DURATION * 0.5, ANIMATION_TRANS_TYPE, ANIMATION_EASE_TYPE, ANIMATION_DURATION * 0.5)
+	animation_tween.interpolate_callback(layout_container, ANIMATION_DURATION * 0.5, "set_visible", true)
